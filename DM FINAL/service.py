@@ -213,7 +213,7 @@ async def load_model():
     if not os.path.exists(MODEL_PATH):
         raise FileNotFoundError(
             f"Модель не найдена: {MODEL_PATH}\n"
-            "Убедитесь, что файл obesity_model.pkl находится в той же директории, что и api.py"
+            "Убедитесь, что файл obesity_model.pkl находится в той же директории, что и service.py"
         )
     
     with open(MODEL_PATH, "rb") as f:
@@ -232,15 +232,48 @@ async def load_model():
 @app.get("/")
 async def root():
     """Корневой endpoint"""
+    import socket
+    # Получаем локальный IP адрес
+    hostname = socket.gethostname()
+    local_ip = socket.gethostbyname(hostname)
+    
     return {
         "message": "Obesity Prediction API",
         "version": "1.0.0",
         "status": "running",
+        "server_ip": local_ip,
+        "port": 8000,
+        "base_url": f"http://{local_ip}:8000",
         "endpoints": {
             "predict": "/predict",
             "health": "/health",
-            "docs": "/docs"
+            "docs": "/docs",
+            "ip": "/ip"
         }
+    }
+
+
+@app.get("/ip")
+async def get_server_ip():
+    """Возвращает IP адрес сервера для подключения из Android"""
+    import socket
+    try:
+        # Подключаемся к внешнему серверу, чтобы узнать наш IP
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        ip = s.getsockname()[0]
+        s.close()
+    except:
+        # Fallback на локальный IP
+        hostname = socket.gethostname()
+        ip = socket.gethostbyname(hostname)
+    
+    return {
+        "server_ip": ip,
+        "port": 8000,
+        "base_url": f"http://{ip}:8000",
+        "predict_url": f"http://{ip}:8000/predict",
+        "note": "Используйте этот IP адрес в Android приложении вместо localhost"
     }
 
 
@@ -318,5 +351,28 @@ async def predict_obesity(input_data: ObesityInput):
 
 if __name__ == "__main__":
     import uvicorn
+    import socket
+    
+    # Получаем IP адрес для отображения
+    try:
+        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+        s.connect(("8.8.8.8", 80))
+        server_ip = s.getsockname()[0]
+        s.close()
+    except:
+        hostname = socket.gethostname()
+        server_ip = socket.gethostbyname(hostname)
+    
+    print("=" * 60)
+    print("🚀 Obesity Prediction API запущен!")
+    print("=" * 60)
+    print(f"📱 Для Android приложения используйте:")
+    print(f"   http://{server_ip}:8000")
+    print()
+    print(f"📋 Документация: http://{server_ip}:8000/docs")
+    print(f"🔍 IP адрес: http://{server_ip}:8000/ip")
+    print("=" * 60)
+    print()
+    
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
